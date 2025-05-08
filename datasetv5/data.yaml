@@ -1,0 +1,33 @@
+path: ../datasetv5
+train: train/images
+val: valid/images
+test:
+
+names:
+  0: 2C
+  1: 2O
+  2: 2P
+  3: 2E
+  4: 3C
+  5: 3O
+  6: 3P
+  7: 3E
+  8: 4P
+  9: 7C
+  10: 7O
+  11: AC
+  12: AO
+  13: AP
+  14: AE
+  15: JC
+  16: JO
+  17: JP
+  18: JE
+  19: KC
+  20: KO
+  21: KP
+  22: KE
+  23: QC
+  24: QO
+  25: QP
+  26: QE
