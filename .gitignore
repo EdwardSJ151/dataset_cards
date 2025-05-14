@@ -1,0 +1,11 @@
+/__pycache__/
+
+datasetv5/*/images/*_90.jpg
+datasetv5/*/images/*_180.jpg
+datasetv5/*/images/*_270.jpg
+
+datasetv5/*/labels/*_90.txt
+datasetv5/*/labels/*_180.txt
+datasetv5/*/labels/*_270.txt
+
+*.ipynb
