@@ -1,3 +1,6 @@
+# Dataset Cartas de Truco
+Dataset de cartas de truco para o curso de visão computacional do INF - UFG
+
 ## Usando funções
 
 ### Augmentations
