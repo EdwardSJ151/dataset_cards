@@ -89,8 +89,6 @@ def augment_dataset_with_rotations(base_dir_path, overwrite_existing=False):
         
         print(f"Arquivos deletados para sobrescrita:")
         print(f"  Imagens: {deleted_images}")
-        print(f"  Labels: {deleted_labels}")
-        print(f"  Total: {deleted_images + deleted_labels}")
     
     all_images = [f for f in os.listdir(image_dir) 
                  if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
@@ -175,8 +173,7 @@ def augment_dataset_with_rotations(base_dir_path, overwrite_existing=False):
 ################################## Other Utils ############################################
 ###########################################################################################
 
-def draw_bbox(image_path):
-
+def draw_bbox(image_path, img_size=None, show_bbox_image=False):
     if not os.path.exists(image_path):
         print(f"Imagem não encontrada: {image_path}")
         return
@@ -212,45 +209,80 @@ def draw_bbox(image_path):
                             except ValueError:
                                 continue
     
-    image = cv2.imread(image_path)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    height, width, _ = image.shape
+    original_image = cv2.imread(image_path)
+    original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
+    original_height, original_width, _ = original_image.shape
+    
+    if img_size:
+        try:
+            target_width, target_height = map(int, img_size.split('x'))
+            image = cv2.resize(original_image, (target_width, target_height))
+            width, height = target_width, target_height
+            width_scale = target_width / original_width
+            height_scale = target_height / original_height
+        except (ValueError, AttributeError):
+            print(f"Formato de img_size inválido. Use 'LARGURAxALTURA', por exemplo: '416x416'")
+            image = original_image
+            height, width = original_height, original_width
+            width_scale = height_scale = 1.0
+    else:
+        image = original_image
+        height, width = original_height, original_width
+        width_scale = height_scale = 1.0
     
     bboxes = []
-    with open(label_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                values = line.split()
-                if len(values) >= 5:
-                    class_id = int(values[0])
-                    x_center = float(values[1])
-                    y_center = float(values[2])
-                    box_width = float(values[3])
-                    box_height = float(values[4])
-                    
-                    x_min = int((x_center - box_width/2) * width)
-                    y_min = int((y_center - box_height/2) * height)
-                    box_width_px = int(box_width * width)
-                    box_height_px = int(box_height * height)
-                    
-                    bboxes.append({
-                        'class_id': class_id,
-                        'class_name': class_names.get(class_id, f"Class {class_id}"),
-                        'x_min': x_min,
-                        'y_min': y_min,
-                        'width': box_width_px,
-                        'height': box_height_px
-                    })
+    if os.path.exists(label_path):
+        with open(label_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    values = line.split()
+                    if len(values) >= 5:
+                        class_id = int(values[0])
+                        x_center = float(values[1])
+                        y_center = float(values[2])
+                        box_width = float(values[3])
+                        box_height = float(values[4])
+                        
+                        x_min = int((x_center - box_width/2) * width)
+                        y_min = int((y_center - box_height/2) * height)
+                        box_width_px = int(box_width * width)
+                        box_height_px = int(box_height * height)
+                        
+                        bboxes.append({
+                            'class_id': class_id,
+                            'class_name': class_names.get(class_id, f"Class {class_id}"),
+                            'x_min': x_min,
+                            'y_min': y_min,
+                            'width': box_width_px,
+                            'height': box_height_px
+                        })
+    else:
+        print(f"Arquivo de labels não encontrado: {label_path}")
     
-    plt.figure(figsize=(12, 10))
-    plt.imshow(image)
-    ax = plt.gca()
+    if show_bbox_image and bboxes:
+        fig = plt.figure(figsize=(15, 10))
+        
+        main_ax = plt.subplot2grid((3, 4), (0, 0), colspan=4, rowspan=2)
+        main_ax.imshow(image)
+        
+        n_bboxes = len(bboxes)
+        cols = min(4, n_bboxes)
+        rows = (n_bboxes + cols - 1) // cols
+        
+        gs = fig.add_gridspec(3, 4)
+        crop_axes = []
+        for i in range(min(n_bboxes, 4)):
+            crop_axes.append(fig.add_subplot(gs[2, i]))
+    else:
+        plt.figure(figsize=(12, 10))
+        plt.imshow(image)
+        main_ax = plt.gca()
     
     np.random.seed(42)
     colors = np.random.rand(100, 3)
     
-    for bbox in bboxes:
+    for i, bbox in enumerate(bboxes):
         color = colors[bbox['class_id'] % len(colors)]
         
         rect = Rectangle(
@@ -260,22 +292,36 @@ def draw_bbox(image_path):
             edgecolor=color,
             facecolor='none'
         )
-        ax.add_patch(rect)
+        main_ax.add_patch(rect)
         
-        plt.text(
+        size_text = f"{bbox['width']}x{bbox['height']}"
+        main_ax.text(
             bbox['x_min'], 
             bbox['y_min'] - 5, 
-            bbox['class_name'],
+            f"{bbox['class_name']} ({size_text})",
             color='white', 
             fontsize=10,
             bbox=dict(facecolor=color, alpha=0.8, pad=2)
         )
+        
+        if show_bbox_image and i < 4:
+            x_min, y_min = max(0, bbox['x_min']), max(0, bbox['y_min'])
+            x_max = min(width, x_min + bbox['width'])
+            y_max = min(height, y_min + bbox['height'])
+            
+            crop = image[y_min:y_max, x_min:x_max]
+            crop_width = x_max - x_min
+            crop_height = y_max - y_min
+            
+            crop_axes[i].imshow(crop)
+            crop_axes[i].set_title(f"{bbox['class_name']} ({crop_width}x{crop_height})")
+            crop_axes[i].axis('off')
     
-    plt.title(f"Image: {os.path.basename(image_path)}")
-    plt.axis('off')
+    main_ax.set_title(f"Image: {os.path.basename(image_path)}" + 
+                      (f" (Resized to {width}x{height})" if img_size else ""))
+    main_ax.axis('off')
     plt.tight_layout()
     plt.show()
-
 
 def delete_augmentations(base_dir_path):
 
